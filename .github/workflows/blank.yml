@@ -1,0 +1,68 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    - cron: '0 18 * * *'          # кожний день о 18:00 UTC (20:00/21:00 Київ)
+  workflow_dispatch:              # можна запускати вручну
+
+jobs:
+  keep-alive:
+    name: Ping Supabase projects
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping all projects
+        env:
+          SUPABASE_KEY_1: ${{ secrets.SUPABASE_KEY_1 }}
+          SUPABASE_KEY_2: ${{ secrets.SUPABASE_KEY_2 }}
+          SUPABASE_KEY_3: ${{ secrets.SUPABASE_KEY_3 }}
+          SUPABASE_KEY_4: ${{ secrets.SUPABASE_KEY_4 }}
+        run: |
+          echo "🚀 Starting Supabase Keep-Alive"
+          echo "========================================"
+
+          declare -A projects=(
+            ["Комунальні платежі"]="https://zmfzvdsogaezifqpuytc.supabase.co/rest/v1/addresses?select=id&limit=1|$SUPABASE_KEY_1"
+            ["єЖурнал"]="https://eykfoazvujjydsjgbmpb.supabase.co/rest/v1/jr_students?select=id&limit=1|$SUPABASE_KEY_2"
+            ["Abonus"]="https://poiyfpvfdvxdttzrfpjj.supabase.co/rest/v1/entries?select=id&limit=1|$SUPABASE_KEY_3"
+            ["Доходи"]="https://xzecdwhhrxuemanqvolh.supabase.co/rest/v1/income_sources?select=id&limit=1|$SUPABASE_KEY_4"
+          )
+
+          success=0
+          failed=0
+
+          for name in "${!projects[@]}"; do
+            IFS='|' read -r url key <<< "${projects[$name]}"
+            
+            echo ""
+            echo "→ $name"
+            
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "apikey: $key" \
+              -H "Authorization: Bearer $key" \
+              --max-time 10 \
+              --connect-timeout 5 \
+              "$url" || echo "000")
+
+            if [ "$status" = "200" ]; then
+              echo "  ✅ Status: $status"
+              ((success++))
+            else
+              echo "  ❌ Status: $status"
+              ((failed++))
+            fi
+          done
+
+          echo ""
+          echo "========================================"
+          echo "✅ Successful: $success"
+          echo "❌ Failed:     $failed"
+          echo "========================================"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "Some projects failed!"
+            exit 1
+          fi
+
+          echo "All projects are alive 🎉"
